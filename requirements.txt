@@ -1,0 +1,6 @@
+feedparser
+beautifulsoup4
+pandas
+pymongo
+textblob
+requests

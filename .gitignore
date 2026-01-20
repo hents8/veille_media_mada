@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# Environnement virtuel
+env/
+venv/
+.venv/
+
+# Données locales
+data/
+*.csv
+
+# Config sensible
+config/config.py
+
+# ChromeDriver (si jamais)
+chromedriver*
