@@ -5,105 +5,107 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
-from datetime import datetime
+from datetime import datetime, timezone
+import hashlib
 import time
+import logging
 
 from transform import clean_text, analyze_sentiment, categorize_text
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
-def scrape_orange_actu(collection, max_pages=10):
+def generate_article_id(title: str, date: str) -> str:
+    """ID unique basé sur le titre et la date."""
+    key = f"{title}-{date}"
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+def parse_date_now() -> str:
+    return datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()
+
+def extract_article_data(block) -> dict | None:
+    """Extrait les informations d’un bloc d’article."""
+    try:
+        titre_elem = block.find_element(By.CSS_SELECTOR, "strong, .titled")
+        titre = titre_elem.text.strip()
+
+        try:
+            date_elem = block.find_element(By.CSS_SELECTOR, "em, .italique")
+            date_pub = date_elem.text.strip()
+        except:
+            date_pub = parse_date_now()
+
+        contenu_raw = block.text.strip()
+        contenu = contenu_raw.replace(titre, "").replace(date_pub, "").strip()
+        contenu_clean = clean_text(contenu)
+
+        article_id = generate_article_id(titre, date_pub)
+
+        return {
+            "id_article": article_id,
+            "source": "Orange Actu",
+            "source_type": "scrap_selenium",
+            "titre": titre,
+            "contenu": contenu_clean,
+            "date_publication": date_pub,
+            "sentiment": analyze_sentiment(contenu_clean),
+            "categorie": categorize_text(contenu_clean),
+            "created_at": parse_date_now()
+        }
+    except Exception as e:
+        logging.warning(f"Erreur extraction article: {e}")
+        return None
+
+def scrape_orange_actu(max_pages=5) -> list[dict]:
+    """Scrape les dépêches Orange Actu en naviguant correctement les pages via JS."""
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--disable-blink-features=AutomationControlled")
 
-    # ✅ webdriver-manager auto-download
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
-    wait = WebDriverWait(driver, 20)
+    wait = WebDriverWait(driver, 15)
 
-    total_added = 0
-    total_existing = 0
+    articles_list = []
+    articles_seen = set()  # pour éviter les doublons
+    base_url = "https://actu.orange.mg/depeches/"
 
-    for page in range(1, max_pages + 1):
-        url = "https://actu.orange.mg/depeches/"
-        if page > 1:
-            url += f"?page={page}"
+    logging.info(f"Démarrage du scraping jusqu'à {max_pages} pages...")
+    driver.get(base_url)
+    time.sleep(2)  # laisser JS charger la première page
 
-        print(f"\n📄 [ORANGE ACTU] Page {page} → {url}")
-        driver.get(url)
+    for page_num in range(1, max_pages + 1):
+        logging.info(f"Scraping page {page_num}...")
 
+        # attendre que les articles soient présents
         try:
-            wait.until(
-                EC.presence_of_all_elements_located(
-                    (By.CSS_SELECTOR, "a[href*='/depeches/']")
-                )
-            )
+            wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.oma-depeches-widget")))
         except:
-            print("⛔ Aucun article détecté → arrêt pagination")
-            break
+            logging.warning("Aucun article trouvé sur cette page")
+            continue
 
-        links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/depeches/']")
-        print(f"🔍 Articles détectés : {len(links)}")
+        blocks = driver.find_elements(By.CSS_SELECTOR, "div.oma-depeches-widget")
+        for b in blocks:
+            data = extract_article_data(b)
+            if data and data["id_article"] not in articles_seen:
+                data["url"] = base_url + f"#page-{page_num}"
+                articles_list.append(data)
+                articles_seen.add(data["id_article"])
+                logging.info(f"✅ [ORANGE] Article ajouté : - {data['titre']}")
+            elif data:
+                logging.warning(f"⚠️ [ORANGE] Article déjà présent : - {data['titre']}")
 
-        page_added = 0
-
-        for a in links:
-            try:
-                titre = a.text.strip()
-                article_url = a.get_attribute("href")
-
-                if not titre or not article_url:
-                    continue
-
-                if collection.count_documents({"id_article": article_url}, limit=1):
-                    total_existing += 1
-                    continue
-
-                driver.execute_script("window.open(arguments[0]);", article_url)
-                driver.switch_to.window(driver.window_handles[1])
-                time.sleep(2)
-
-                try:
-                    contenu = driver.find_element(
-                        By.CSS_SELECTOR, "div.content-article"
-                    ).text
-                except:
-                    contenu = ""
-
-                contenu = clean_text(contenu)
-
-                doc = {
-                    "id_article": article_url,
-                    "source": "Orange Actu",
-                    "source_type": "scrap_selenium",
-                    "titre": titre,
-                    "contenu": contenu,
-                    "url": article_url,
-                    "date_publication": datetime.utcnow().isoformat(),
-                    "sentiment": analyze_sentiment(contenu),
-                    "categorie": categorize_text(contenu),
-                }
-
-                collection.insert_one(doc)
-                total_added += 1
-                page_added += 1
-
-                print(f"✅ Ajouté : {titre}")
-
-                driver.close()
-                driver.switch_to.window(driver.window_handles[0])
-
-            except Exception as e:
-                print(f"❌ Erreur article : {e}")
-
-        if page_added == 0:
-            print("🛑 Aucun nouvel article → arrêt")
+        # Cliquer sur le lien de la page suivante
+        try:
+            next_page_selector = f"a.page-link[href='#page-{page_num+1}']"
+            next_link = driver.find_element(By.CSS_SELECTOR, next_page_selector)
+            next_link.click()
+            time.sleep(1.5)  # laisser JS charger
+        except:
+            logging.info("Plus de pages disponibles ou impossible de cliquer sur la page suivante.")
             break
 
     driver.quit()
-
-    print("\n📊 RÉSULTAT ORANGE ACTU")
-    print(f"Articles ajoutés : {total_added}")
-    print(f"Articles déjà présents : {total_existing}")
+    logging.info(f"Scraping terminé. {len(articles_list)} articles uniques récupérés.")
+    return articles_list

@@ -1,78 +1,79 @@
 import requests
 from bs4 import BeautifulSoup
-from dateutil import parser
-from pymongo import MongoClient
-from config.config import SCRAP_SITES
+from dateutil import parser as date_parser
 from transform import clean_text, analyze_sentiment, categorize_text
+import datetime
+import hashlib
+from config.config import SCRAP_SITES
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
-def scrape_site(collection):
-    scrap_ajoutes = 0
-    scrap_deja_present = 0
+def generate_article_id(url: str) -> str:
+    return hashlib.sha256(url.encode("utf-8")).hexdigest()
+
+def parse_date(text: str) -> str:
+    try:
+        dt = date_parser.parse(text, fuzzy=True)
+        return dt.astimezone(datetime.timezone.utc).isoformat()
+    except Exception:
+        return datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
+
+def scrape_site() -> list[dict]:
+    """Retourne la liste des articles extraits des sites HTML"""
+    articles_list = []
 
     for site in SCRAP_SITES:
+        url_base = site.get("url")
+        name = site.get("name", url_base)
+
         try:
-            res = requests.get(site["url"], headers=HEADERS, timeout=10)
+            res = requests.get(url_base, headers=HEADERS, timeout=10)
             res.raise_for_status()
-            soup = BeautifulSoup(res.text, "html.parser")
-            articles_blocks = soup.select(site["article_selector"])
-            print(f"🔍 [{site['name']}] Articles trouvés : {len(articles_blocks)}")
+        except Exception:
+            continue
 
+        soup = BeautifulSoup(res.text, "html.parser")
+        articles_blocks = soup.select(site.get("article_selector", ""))
+        if not articles_blocks:
+            continue
 
-            for a in articles_blocks:
-                titre = a.get_text(strip=True)
-                url = a.get("href")
-                if not url.startswith("http"):
-                    url = site["url"].rstrip("/") + url
+        for a in articles_blocks:
+            titre = a.get_text(strip=True)
+            url = a.get("href")
+            if not url:
+                continue
+            if not url.startswith("http"):
+                url = url_base.rstrip("/") + url
 
-                if collection.count_documents({"id_article": url}, limit=1) > 0:
-                    print(f"⚠️ [SCRAP] Article déjà présent : {titre}")
-                    scrap_deja_present += 1
-                    continue
+            article_id = generate_article_id(url)
 
-                try:
-                    res_article = requests.get(url, headers=HEADERS, timeout=10)
-                    res_article.raise_for_status()
-                    soup_article = BeautifulSoup(res_article.text, "html.parser")
-                    contenu_block = soup_article.select_one(site["content_selector"])
-                    contenu = contenu_block.get_text(" ", strip=True) if contenu_block else ""
+            try:
+                res_article = requests.get(url, headers=HEADERS, timeout=10)
+                res_article.raise_for_status()
+                soup_article = BeautifulSoup(res_article.text, "html.parser")
+            except Exception:
+                continue
 
-                    date_block = soup_article.select_one(site["date_selector"])
-                    date_pub = None
-                    if date_block:
-                        date_text = date_block.get_text(strip=True)
-                        if date_text:
-                            try:
-                                date_pub = parser.parse(date_text, fuzzy=True)
-                            except Exception:
-                                pass
+            contenu_block = soup_article.select_one(site.get("content_selector", ""))
+            contenu = contenu_block.get_text(" ", strip=True) if contenu_block else ""
 
-                    # Transformations
-                    contenu_clean = clean_text(contenu)
-                    sentiment = analyze_sentiment(contenu_clean)
-                    categorie = categorize_text(contenu_clean)
+            date_block = soup_article.select_one(site.get("date_selector", ""))
+            date_pub_text = date_block.get_text(strip=True) if date_block else ""
+            date_pub = parse_date(date_pub_text) if date_pub_text else datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
 
-                    doc = {
-                        "id_article": url,
-                        "source": site["name"],
-                        "titre": titre,
-                        "date_publication": date_pub.isoformat() if date_pub else None,
-                        "contenu": contenu_clean,
-                        "url": url,
-                        "categorie": categorie,
-                        "sentiment": sentiment
-                    }
+            contenu_clean = clean_text(contenu)
+            doc = {
+                "id_article": article_id,
+                "source": name,
+                "source_type": "scrap_html",
+                "titre": titre,
+                "date_publication": date_pub,
+                "contenu": contenu_clean,
+                "url": url,
+                "categorie": categorize_text(contenu_clean),
+                "sentiment": analyze_sentiment(contenu_clean),
+                "created_at": datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
+            }
+            articles_list.append(doc)
 
-                    collection.insert_one(doc)
-                    print(f"✅ [SCRAP] Article ajouté : {titre}")
-                    scrap_ajoutes += 1
-
-                except Exception as e:
-                    print(f"Erreur site {site['name']} article {url} : {e}")
-
-        except Exception as e:
-            print(f"Erreur connexion site {site['name']} : {e}")
-
-    return scrap_ajoutes, scrap_deja_present
-
+    return articles_list
