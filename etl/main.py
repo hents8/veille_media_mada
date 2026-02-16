@@ -1,5 +1,10 @@
 import sys
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pymongo import MongoClient
@@ -8,6 +13,10 @@ from rss_loader import fetch_rss_articles
 from scraper_loader import scrape_site
 from selenium_loader import scrape_orange_actu
 from transform import clean_text, analyze_sentiment, categorize_text
+
+MONGO_URI = os.getenv("MONGO_URI")
+if not MONGO_URI:
+    raise ValueError("La variable d'environnement MONGO_URI n'est pas définie !")
 
 def upsert_article(collection, article) -> bool:
     """Ajoute un article si non présent, retourne True si ajouté, False sinon."""

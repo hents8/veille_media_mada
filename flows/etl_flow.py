@@ -1,10 +1,15 @@
 from prefect import flow, task
 from pymongo import MongoClient
-from config.config import MONGO_URI
 from etl.main import process_articles
 from etl.rss_loader import fetch_rss_articles
 from etl.scraper_loader import scrape_site
 from etl.selenium_loader import scrape_orange_actu
+from dotenv import load_dotenv
+import os
+
+# Charger les variables d'environnement depuis .env
+load_dotenv()
+MONGO_URI = os.getenv("MONGO_URI")
 
 # Connexion MongoDB
 def get_mongo_collection():
@@ -37,3 +42,6 @@ def articles_etl_flow():
     print(f"RSS : {rss_result}")
     print(f"SCRAP : {scrap_result}")
     print(f"ORANGE : {orange_result}")
+
+if __name__ == "__main__":
+    articles_etl_flow()
