@@ -8,7 +8,7 @@ load_dotenv()
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pymongo import MongoClient
-from config.config import MONGO_URI
+
 from rss_loader import fetch_rss_articles
 from scraper_loader import scrape_site
 from selenium_loader import scrape_orange_actu
