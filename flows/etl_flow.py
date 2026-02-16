@@ -1,17 +1,17 @@
+# flows/etl_flow.py
 from prefect import flow, task
 from pymongo import MongoClient
 from etl.main import process_articles
 from etl.rss_loader import fetch_rss_articles
 from etl.scraper_loader import scrape_site
 from etl.selenium_loader import scrape_orange_actu
-from dotenv import load_dotenv
 import os
 
-# Charger les variables d'environnement depuis .env
-load_dotenv()
+# Récupérer MONGO_URI depuis l'environnement (GitHub Secrets)
 MONGO_URI = os.getenv("MONGO_URI")
+if not MONGO_URI:
+    raise ValueError("La variable d'environnement MONGO_URI n'est pas définie !")
 
-# Connexion MongoDB
 def get_mongo_collection():
     client = MongoClient(MONGO_URI)
     db = client["veille_media"]
@@ -38,7 +38,8 @@ def articles_etl_flow():
     rss_result = rss_task(collection)
     scrap_result = scrap_task(collection)
     orange_result = orange_task(collection)
-    print("Pipeline terminé ! Résumé :")
+
+    print("✅ Pipeline terminé ! Résumé :")
     print(f"RSS : {rss_result}")
     print(f"SCRAP : {scrap_result}")
     print(f"ORANGE : {orange_result}")
