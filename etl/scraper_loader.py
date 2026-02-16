@@ -1,7 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as date_parser
-from transform import clean_text, analyze_sentiment, categorize_text
+from etl.transform import clean_text, analyze_sentiment, categorize_text
 import datetime
 import hashlib
 
