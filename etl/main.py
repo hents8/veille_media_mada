@@ -45,12 +45,12 @@ def main():
     collection = db["articles"]
 
     # 1️⃣ RSS
-    #rss_articles = fetch_rss_articles()
-    #total_rss_added, total_rss_existing = process_articles(collection, rss_articles, "RSS")
+    rss_articles = fetch_rss_articles()
+    total_rss_added, total_rss_existing = process_articles(collection, rss_articles, "RSS")
 
     # 2️⃣ Scraping HTML
-    #scrap_articles = scrape_site()
-    #total_scrap_added, total_scrap_existing = process_articles(collection, scrap_articles, "SCRAP")
+    scrap_articles = scrape_site()
+    total_scrap_added, total_scrap_existing = process_articles(collection, scrap_articles, "SCRAP")
 
     # 3️⃣ Selenium Orange Actu
     orange_articles = scrape_orange_actu(max_pages=3)
@@ -58,8 +58,8 @@ def main():
 
     # 4️⃣ Résumé final
     print("\n📊 Résumé final du pipeline :")
-    #print(f"RSS     - Articles ajoutés : {total_rss_added}, déjà présents : {total_rss_existing}")
-    #print(f"SCRAP   - Articles ajoutés : {total_scrap_added}, déjà présents : {total_scrap_existing}")
+    print(f"RSS     - Articles ajoutés : {total_rss_added}, déjà présents : {total_rss_existing}")
+    print(f"SCRAP   - Articles ajoutés : {total_scrap_added}, déjà présents : {total_scrap_existing}")
     print(f"ORANGE  - Articles ajoutés : {total_orange_added}, déjà présents : {total_orange_existing}")
     print("✅ Pipeline terminé, MongoDB mis à jour")
 
