@@ -2,9 +2,9 @@ name: Daily ETL
 
 on:
   schedule:
-    # Tous les jours à midi (UTC)
+    # Tous les jours à midi UTC
     - cron: '0 12 * * *'
-  workflow_dispatch: # permet de déclencher manuellement
+  workflow_dispatch: # déclenchement manuel
 
 jobs:
   run-etl:
@@ -28,5 +28,6 @@ jobs:
     - name: Run ETL
       env:
         MONGO_URI: ${{ secrets.MONGO_URI }}
+        PYTHONPATH: ${{ github.workspace }} 
       run: |
         python flows/etl_flow.py

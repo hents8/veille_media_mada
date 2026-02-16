@@ -4,3 +4,6 @@ pandas
 pymongo
 textblob
 requests
+python-dotenv
+prefect
+selenium
