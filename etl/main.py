@@ -9,10 +9,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pymongo import MongoClient
 
-from rss_loader import fetch_rss_articles
-from scraper_loader import scrape_site
-from selenium_loader import scrape_orange_actu
-from transform import clean_text, analyze_sentiment, categorize_text
+from etl.rss_loader import fetch_rss_articles
+from etl.scraper_loader import scrape_site
+from etl.selenium_loader import scrape_orange_actu
+from etl.transform import clean_text, analyze_sentiment, categorize_text
 
 MONGO_URI = os.getenv("MONGO_URI")
 if not MONGO_URI:
