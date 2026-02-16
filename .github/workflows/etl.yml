@@ -1,0 +1,32 @@
+name: Daily ETL
+
+on:
+  schedule:
+    # Tous les jours à midi (UTC)
+    - cron: '0 12 * * *'
+  workflow_dispatch: # permet de déclencher manuellement
+
+jobs:
+  run-etl:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install python-dotenv pymongo prefect
+
+    - name: Run ETL
+      env:
+        MONGO_URI: ${{ secrets.MONGO_URI }}
+      run: |
+        python flows/etl_flow.py
