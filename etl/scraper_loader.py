@@ -4,7 +4,16 @@ from dateutil import parser as date_parser
 from transform import clean_text, analyze_sentiment, categorize_text
 import datetime
 import hashlib
-from config.config import SCRAP_SITES
+
+SCRAP_SITES = [
+    {
+        "name": "Malagasy News",
+        "url": "https://www.malagasynews.com/actualites/",
+        "article_selector": "h2.post-title a",
+        "content_selector": "div.entry-content",
+        "date_selector": "span.date"
+    }
+]
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 

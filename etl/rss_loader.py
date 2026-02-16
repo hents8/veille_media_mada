@@ -2,7 +2,6 @@ import feedparser
 import datetime
 import hashlib
 from dateutil import parser
-from config.config import RSS_FEEDS
 import requests
 from bs4 import BeautifulSoup
 import unicodedata
@@ -10,6 +9,31 @@ import unicodedata
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 TIMEOUT = 15
 MAX_RETRIES = 3
+
+RSS_FEEDS = [
+    "https://www.madagascar-tribune.com/spip.php?page=backend",
+    "https://www.lexpress.mg/feeds/posts/default",
+    "https://newsmada.com/feed/",
+    "https://midi-madagasikara.mg/feed/",  
+    "https://2424.mg/feed/",
+    "https://rsf.org/fr/rss/afrique/madagascar/feed.xml",
+    "https://www.madagate.org/index.php?format=feed&type=rss",
+    "https://lgdi-madagascar.com/feed/",
+    "https://midi-madagasikara.mg/category/politique/feed/",
+    "https://midi-madagasikara.mg/category/economie/feed/",
+    "https://www.lexpress.mg/feeds/posts/default/-/Politique",
+    "https://www.lexpress.mg/feeds/posts/default/-/%C3%89conomie",
+    "https://newsmada.com/category/les-nouvelles/feed/",
+    "https://newsmada.com/category/les-nouvelles/politique/feed/",
+    "https://2424.mg/category/actualite/politique/feed/",
+    "https://2424.mg/category/actualite/economie/feed/",
+    "https://www.lemonde.fr/madagascar/rss_full.xml",
+    "https://www.courrierinternational.com/feed/rubrique/madagascar/rss.xml",
+    "https://news.google.com/rss/search?q=Madagascar&hl=fr&gl=FR&ceid=FR:fr",
+    "https://tanikomadagascar.com/feed/",
+    "https://namana-studio.fr/feed/",
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UCK84qSI2bEMWkX9vUptkAlA"  
+]
 
 def generate_article_id(url: str) -> str:
     return hashlib.sha256(url.encode("utf-8")).hexdigest()
