@@ -10,7 +10,7 @@ import hashlib
 import time
 import logging
 
-from transform import clean_text, analyze_sentiment, categorize_text
+from etl.transform import clean_text, analyze_sentiment, categorize_text
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
