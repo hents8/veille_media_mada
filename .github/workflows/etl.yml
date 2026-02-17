@@ -26,5 +26,6 @@ jobs:
       - name: Run ETL
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           python flows/etl_flow.py
