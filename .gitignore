@@ -20,3 +20,4 @@ config/config.py
 
 # ChromeDriver (si jamais)
 chromedriver*
+.ipynb_checkpoints/
