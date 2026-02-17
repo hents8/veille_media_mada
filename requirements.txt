@@ -1,10 +1,8 @@
+prefect
+pymongo
+python-dotenv
 feedparser
 beautifulsoup4
-pandas
-pymongo
-textblob
 requests
-python-dotenv
-prefect
 selenium
 webdriver-manager
