@@ -4,7 +4,9 @@ from config.settings import MONGO_URI
 from etl.main import process_articles
 from etl.rss_loader import fetch_rss_articles
 from etl.scraper_loader import scrape_site
+import sys
 import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 🔥 Choix dynamique du loader Orange
 if os.getenv("CI") == "true":
