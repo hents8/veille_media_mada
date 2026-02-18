@@ -17,7 +17,6 @@ RSS_FEEDS = [
     "https://midi-madagasikara.mg/feed/",  
     "https://2424.mg/feed/",
     "https://rsf.org/fr/rss/afrique/madagascar/feed.xml",
-    "https://www.madagate.org/index.php?format=feed&type=rss",
     "https://lgdi-madagascar.com/feed/",
     "https://midi-madagasikara.mg/category/politique/feed/",
     "https://midi-madagasikara.mg/category/economie/feed/",
@@ -32,18 +31,20 @@ RSS_FEEDS = [
     "https://news.google.com/rss/search?q=Madagascar&hl=fr&gl=FR&ceid=FR:fr",
     "https://tanikomadagascar.com/feed/",
     "https://namana-studio.fr/feed/",
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UCK84qSI2bEMWkX9vUptkAlA"  
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UCK84qSI2bEMWkX9vUptkAlA"
 ]
 
 def generate_article_id(url: str) -> str:
     return hashlib.sha256(url.encode("utf-8")).hexdigest()
 
 def parse_date(entry) -> str:
-    if hasattr(entry, "published"):
+    """Retourne la date publication uniforme en ISO. Si absent, retourne UTC."""
+    if hasattr(entry, "published") and entry.published:
         try:
             return parser.parse(entry.published).isoformat()
         except Exception:
             pass
+    # Pas de published → utiliser la date actuelle UTC
     return datetime.datetime.utcnow().isoformat()
 
 def fetch_feed_content(feed_url: str) -> str | None:
@@ -82,15 +83,22 @@ def fetch_rss_articles():
             url = entry.link.strip()
             summary = clean_summary(entry.summary) if hasattr(entry, "summary") else ""
 
+            date_pub = parse_date(entry)
+            created_at = datetime.datetime.utcnow().isoformat()
+
+            # Si date_publication est vide, fallback sur created_at
+            if not date_pub:
+                date_pub = created_at
+
             article = {
                 "id_article": generate_article_id(url),
                 "source": feed_url,
                 "source_type": "rss",
                 "titre": entry.title.strip(),
-                "date_publication": parse_date(entry),
+                "date_publication": date_pub,
                 "contenu": summary,
                 "url": url,
-                "created_at": datetime.datetime.utcnow().isoformat(),
+                "created_at": created_at,
             }
             articles.append(article)
     return articles

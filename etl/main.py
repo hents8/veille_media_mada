@@ -12,7 +12,7 @@ from pymongo import MongoClient
 from etl.rss_loader import fetch_rss_articles
 from etl.scraper_loader import scrape_site
 from etl.selenium_loader import scrape_orange_actu
-from etl.transform import clean_text, analyze_sentiment, categorize_text
+from etl.transform import clean_text, analyze_sentiment, categorize_text, analyze_sentiment_score
 
 MONGO_URI = os.getenv("MONGO_URI")
 if not MONGO_URI:
@@ -34,7 +34,7 @@ def process_articles(collection, articles, source_label="RSS"):
             article["contenu"] = clean_text(article.get("contenu", ""))
             sentiment_data = analyze_sentiment(article["contenu"])
             article["sentiment"] = sentiment_data
-            article["sentiment_score"] = None
+            article["sentiment_score"] = analyze_sentiment_score(article["contenu"])
             article["categorie"] = categorize_text(article["contenu"])
 
             if upsert_article(collection, article):

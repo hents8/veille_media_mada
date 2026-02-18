@@ -24,6 +24,13 @@ def analyze_sentiment(text: str) -> str:
         return "negatif"
     else:
         return "neutre"
+        
+
+def analyze_sentiment_score(text: str) -> float:
+    """Retourne le score numérique de sentiment entre -1 et +1"""
+    if not text:
+        return 0.0
+    return TextBlob(text).sentiment.polarity
 
 
 def categorize_text(text: str) -> str:
