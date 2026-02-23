@@ -28,8 +28,6 @@ RSS_FEEDS = [
     "https://2424.mg/category/actualite/economie/feed/",
     "https://www.lemonde.fr/madagascar/rss_full.xml",
     "https://www.courrierinternational.com/feed/rubrique/madagascar/rss.xml",
-    "https://news.google.com/rss/search?q=Madagascar&hl=fr&gl=FR&ceid=FR:fr",
-    "https://tanikomadagascar.com/feed/",
     "https://namana-studio.fr/feed/",
     "https://www.youtube.com/feeds/videos.xml?channel_id=UCK84qSI2bEMWkX9vUptkAlA"
 ]

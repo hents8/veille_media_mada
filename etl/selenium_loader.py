@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 import hashlib
 import time
 import logging
+import os
+os.environ["WDM_SSL_VERIFY"] = "0"
 
 from etl.transform import clean_text, analyze_sentiment, categorize_text
 

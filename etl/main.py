@@ -2,10 +2,9 @@ import sys
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
-
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+sys.path.append(BASE_DIR)
 
 from pymongo import MongoClient
 
@@ -58,18 +57,18 @@ def main():
     total_rss_added, total_rss_existing = process_articles(collection, rss_articles, "RSS")
 
     # 2️⃣ Scraping HTML
-    #scrap_articles = scrape_site()
-    #total_scrap_added, total_scrap_existing = process_articles(collection, scrap_articles, "SCRAP")
+     #scrap_articles = scrape_site()
+     #total_scrap_added, total_scrap_existing = process_articles(collection, scrap_articles, "SCRAP")
 
     # 3️⃣ Selenium Orange Actu
-    #orange_articles = scrape_orange_actu(max_pages=3)
-    #total_orange_added, total_orange_existing = process_articles(collection, orange_articles, "ORANGE")
+     #orange_articles = scrape_orange_actu(max_pages=3)
+     #total_orange_added, total_orange_existing = process_articles(collection, orange_articles, "ORANGE")
 
     # 4️⃣ Résumé final
     print("\n📊 Résumé final du pipeline :")
     print(f"RSS     - Articles ajoutés : {total_rss_added}, déjà présents : {total_rss_existing}")
-    #print(f"SCRAP   - Articles ajoutés : {total_scrap_added}, déjà présents : {total_scrap_existing}")
-    #print(f"ORANGE  - Articles ajoutés : {total_orange_added}, déjà présents : {total_orange_existing}")
+     #print(f"SCRAP   - Articles ajoutés : {total_scrap_added}, déjà présents : {total_scrap_existing}")
+     #print(f"ORANGE  - Articles ajoutés : {total_orange_added}, déjà présents : {total_orange_existing}")
     print("✅ Pipeline terminé, MongoDB mis à jour")
 
 if __name__ == "__main__":
