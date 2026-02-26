@@ -8,7 +8,6 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# 🔥 Choix dynamique du loader Orange
 if os.getenv("CI") == "true":
     from etl.orange_loader_ci import scrape_orange_actu
 else:
@@ -22,30 +21,31 @@ def get_mongo_collection():
 
 
 @task
-def rss_task(collection):
+def rss_task():
+    collection = get_mongo_collection()
     articles = fetch_rss_articles()
     return process_articles(collection, articles, "RSS")
 
 
 @task
-def scrap_task(collection):
+def scrap_task():
+    collection = get_mongo_collection()
     articles = scrape_site()
     return process_articles(collection, articles, "SCRAP")
 
 
 @task
-def orange_task(collection):
+def orange_task():
+    collection = get_mongo_collection()
     articles = scrape_orange_actu(max_pages=3)
     return process_articles(collection, articles, "ORANGE")
 
 
 @flow(name="Articles ETL Flow")
 def articles_etl_flow():
-    collection = get_mongo_collection()
-
-    rss_result = rss_task(collection)
-    scrap_result = scrap_task(collection)
-    orange_result = orange_task(collection)
+    rss_result = rss_task()
+    scrap_result = scrap_task()
+    orange_result = orange_task()
 
     print("Pipeline terminé !")
     print(rss_result, scrap_result, orange_result)
