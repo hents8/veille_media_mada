@@ -6,4 +6,6 @@ beautifulsoup4
 requests
 selenium
 webdriver-manager
-textblob 
+textblob
+langdetect
+textblob_fr
