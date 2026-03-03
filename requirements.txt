@@ -9,3 +9,5 @@ webdriver-manager
 textblob
 langdetect
 textblob_fr
+transformers
+torch

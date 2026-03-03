@@ -22,33 +22,39 @@ def process_articles(collection, articles, source_label="RSS"):
     operations = []
     added_count = 0
     existing_count = 0
-    
+
+    # 🔹 Récupère tous les ID déjà présents dans la collection
+    existing_ids = set(collection.distinct("id_article"))
+
     for article in articles:
-            try:
-                article["contenu"] = clean_text(article.get("contenu", ""))
-                article["langue"] = detect_language(article["contenu"])
-                article["sentiment"] = analyze_sentiment(article["contenu"])
-                article["sentiment_score"] = analyze_sentiment_score(article["contenu"])
-                article["categorie"] = categorize_text(article["contenu"])
+        try:
+            article_id = article["id_article"]
 
-                # Upsert simulé : on ne fait l'insertion que si pas déjà présent
-                if collection.count_documents({"id_article": article["id_article"]}, limit=1) == 0:
-                    operations.append(InsertOne(article))
-                    added_count += 1
-                    print(f"✅ [{source_label}] Article ajouté : {article['titre']}")
-                else:
-                    existing_count += 1
-                    print(f"⚠️ [{source_label}] Article déjà présent : {article['titre']}")
-                    
-            except Exception as e:
-                print(f"❌ [{source_label}] Erreur sur article {article.get('titre', '')}: {e}")
+            if article_id in existing_ids:
+                existing_count += 1
+                print(f"⚠️ [{source_label}] - {article['date_publication']} Article déjà présent : {article['titre']}")
+                continue  # skip NLP pour articles existants
 
-            # Batch insert
+            # 🔹 Seulement pour les nouveaux articles
+            article["contenu"] = clean_text(article.get("contenu", ""))
+            article["langue"] = detect_language(article["contenu"])
+            article["sentiment"] = analyze_sentiment(article["contenu"])
+            article["sentiment_score"] = analyze_sentiment_score(article["contenu"])
+            article["categorie"] = categorize_text(article["contenu"])
+
+            operations.append(InsertOne(article))
+            added_count += 1
+            print(f"✅ [{source_label}] - {article['date_publication']} Article ajouté : {article['titre']}")
+
+            # 🔹 Batch insert
             if len(operations) >= BATCH_SIZE:
                 collection.bulk_write(operations)
                 operations = []
 
-        # Insert les restants
+        except Exception as e:
+            print(f"❌ [{source_label}] Erreur sur article {article.get('titre', '')}: {e}")
+
+    # 🔹 Insert les restants
     if operations:
         collection.bulk_write(operations)
 

@@ -2,6 +2,7 @@ import feedparser
 import datetime
 import hashlib
 from dateutil import parser
+from datetime import datetime, timezone
 import requests
 from bs4 import BeautifulSoup
 import unicodedata
@@ -35,15 +36,33 @@ RSS_FEEDS = [
 def generate_article_id(url: str) -> str:
     return hashlib.sha256(url.encode("utf-8")).hexdigest()
 
-def parse_date(entry) -> str:
-    """Retourne la date publication uniforme en ISO. Si absent, retourne UTC."""
-    if hasattr(entry, "published") and entry.published:
-        try:
-            return parser.parse(entry.published).isoformat()
-        except Exception:
-            pass
-    # Pas de published → utiliser la date actuelle UTC
-    return datetime.datetime.utcnow().isoformat()
+def parse_date(entry) -> datetime:
+    """
+    Retourne un objet datetime UTC propre pour MongoDB.
+    Priorité : published → updated → fallback UTC now.
+    """
+
+    date_fields = ["published", "updated", "created"]
+
+    for field in date_fields:
+        if hasattr(entry, field):
+            value = getattr(entry, field)
+            if value:
+                try:
+                    dt = parser.parse(value)
+
+                    # Si pas de timezone → forcer UTC
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    else:
+                        dt = dt.astimezone(timezone.utc)
+
+                    return dt
+                except Exception:
+                    continue
+
+    # Fallback propre en UTC
+    return datetime.now(timezone.utc)
 
 def fetch_feed_content(feed_url: str) -> str | None:
     for _ in range(MAX_RETRIES):
@@ -82,7 +101,7 @@ def fetch_rss_articles():
             summary = clean_summary(entry.summary) if hasattr(entry, "summary") else ""
 
             date_pub = parse_date(entry)
-            created_at = datetime.datetime.utcnow().isoformat()
+            created_at = datetime.now(timezone.utc)
 
             # Si date_publication est vide, fallback sur created_at
             if not date_pub:
