@@ -11,3 +11,4 @@ langdetect
 textblob_fr
 transformers
 torch
+sentence-transformers
