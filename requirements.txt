@@ -9,8 +9,8 @@ webdriver-manager
 textblob
 langdetect
 textblob_fr
-transformers
+transformers>=4.40.0
 torch
 sentence-transformers
-tiktoken
 sentencepiece
+protobuf>=4.25.0
