@@ -9,6 +9,7 @@ from sentence_transformers import SentenceTransformer, util
 import torch
 from collections import Counter
 from transformers import pipeline
+from urllib.parse import urlparse
 
 DetectorFactory.seed = 0
 tb_fr = Blobber(pos_tagger=PatternTagger(), analyzer=PatternAnalyzer())
@@ -512,3 +513,36 @@ def categorize_text(text: str):
 
     _category_cache[text] = ["autre"]
     return ["autre"]
+
+DOMAIN_TO_NAME = {
+    "2424.mg": "2424 MG",
+    "lgdi-madagascar.com": "LGDI Madagascar",
+    "midi-madagasikara.mg": "Midi Madagasikara",
+    "namana-studio.fr": "Namana Studio",
+    "newsmada.com": "News Mada",
+    "rsf.org": "RSF",
+    "courrierinternational.com": "Courrier International",
+    "lemonde.fr": "Le Monde",
+    "lexpress.mg": "L’Express",
+    "madagascar-tribune.com": "Madagascar Tribune",
+    "youtube.com": "YouTube",
+    "Malagasy News": "Malagasy News",
+    "Orange Actu": "Orange Actu"
+}
+
+_origin_cache = {}
+
+def extract_origin(source: str) -> str:
+    if source in _origin_cache:
+        return _origin_cache[source]
+
+    if source.startswith("http"):
+        domain = urlparse(source).netloc
+        if domain.startswith("www."):
+            domain = domain[4:]
+        origin = DOMAIN_TO_NAME.get(domain, domain)
+    else:
+        origin = DOMAIN_TO_NAME.get(source, source)
+
+    _origin_cache[source] = origin
+    return origin

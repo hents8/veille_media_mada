@@ -11,7 +11,7 @@ sys.path.append(BASE_DIR)
 from etl.rss_loader import fetch_rss_articles
 from etl.scraper_loader import scrape_site
 from etl.selenium_loader import scrape_orange_actu
-from etl.transform import clean_text, analyze_sentiment, categorize_text, analyze_sentiment_score, detect_language
+from etl.transform import clean_text, analyze_sentiment, categorize_text, analyze_sentiment_score, detect_language, extract_origin
 
 MONGO_URI = os.getenv("MONGO_URI")
 if not MONGO_URI:
@@ -81,6 +81,9 @@ def process_articles(collection, articles, source_label="RSS"):
             except:
                 article["categorie"] = None
 
+            source_val = article.get("source", "")
+            article["origin"] = extract_origin(source_val)
+            
             operations.append(InsertOne(article))
             added_count += 1
 
