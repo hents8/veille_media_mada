@@ -2,7 +2,7 @@ name: Daily ETL
 
 on:
   schedule:
-    - cron: '0 9 * * *'
+    - cron: '0 */3 * * *'
   workflow_dispatch:
 
 jobs:
@@ -17,6 +17,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.13'
+
+      - name: Cache HuggingFace models
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/huggingface
+          key: huggingface-models
 
       - name: Install dependencies
         run: |
