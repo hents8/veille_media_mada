@@ -2,7 +2,7 @@ name: Daily ETL
 
 on:
   schedule:
-    - cron: '0 */3 * * *'
+    - cron: '0 */3 * * *'  # Toutes les 3h
   workflow_dispatch:
 
 jobs:
@@ -11,18 +11,28 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4  # ✅ v3 → v4 (Node 24 OK)
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5  # ✅ v4 → v5 (Node 24 OK)
         with:
           python-version: '3.13'
 
       - name: Cache HuggingFace models
-        uses: actions/cache@v3
+        uses: actions/cache@v4  # ✅ v3 → v4 (Node 24 OK)
         with:
           path: ~/.cache/huggingface
-          key: huggingface-models
+          key: huggingface-models-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            huggingface-models-
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
@@ -35,3 +45,12 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           python -m flows.etl_flow
+      
+      - name: Upload ETL logs (if failed)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: etl-logs-${{ github.run_number }}
+          path: |
+            *.log
+            orange_whatsapp_articles_*.json
