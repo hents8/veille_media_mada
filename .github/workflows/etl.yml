@@ -2,24 +2,27 @@ name: Daily ETL
 
 on:
   schedule:
-    - cron: '0 */3 * * *'  # Toutes les 3h
+    - cron: '0 */3 * * *'  # toutes les 3h
   workflow_dispatch:
 
 jobs:
   run-etl:
     runs-on: ubuntu-latest
+    env:
+      # Basculer dès maintenant sur Node.js 24 pour les actions JS
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4  # ✅ v3 → v4 (Node 24 OK)
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5  # ✅ v4 → v5 (Node 24 OK)
+        uses: actions/setup-python@v5
         with:
           python-version: '3.13'
 
       - name: Cache HuggingFace models
-        uses: actions/cache@v4  # ✅ v3 → v4 (Node 24 OK)
+        uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
           key: huggingface-models-${{ hashFiles('**/requirements.txt') }}
@@ -45,7 +48,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           python -m flows.etl_flow
-      
+
       - name: Upload ETL logs (if failed)
         if: failure()
         uses: actions/upload-artifact@v4
