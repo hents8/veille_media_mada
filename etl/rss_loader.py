@@ -1,15 +1,9 @@
 import feedparser
-import datetime
-import hashlib
-from dateutil import parser
-from datetime import datetime, timezone
 import requests
+from datetime import datetime, timezone
+import hashlib
+import re
 from bs4 import BeautifulSoup
-import unicodedata
-
-HEADERS = {"User-Agent": "Mozilla/5.0"}
-TIMEOUT = 15
-MAX_RETRIES = 3
 
 RSS_FEEDS = [
     "https://www.madagascar-tribune.com/spip.php?page=backend",
@@ -27,95 +21,110 @@ RSS_FEEDS = [
     "https://newsmada.com/category/les-nouvelles/politique/feed/",
     "https://2424.mg/category/actualite/politique/feed/",
     "https://2424.mg/category/actualite/economie/feed/",
-    "https://www.lemonde.fr/madagascar/rss_full.xml",
-    "https://www.courrierinternational.com/feed/rubrique/madagascar/rss.xml",
-    "https://namana-studio.fr/feed/",
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UCK84qSI2bEMWkX9vUptkAlA"
+    # "https://www.lemonde.fr/madagascar/rss_full.xml",  # SSL bug → commente
 ]
 
-def generate_article_id(url: str) -> str:
-    return hashlib.sha256(url.encode("utf-8")).hexdigest()
+def fetch_feed_content(url, timeout=30):
+    """FIX BOM + MIDI MADA"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    try:
+        resp = requests.get(url, headers=headers, timeout=timeout, verify=False)
+        resp.raise_for_status()
+        content = resp.text
+        
+        # 🔥 SUPPRIME BOM UTF-8
+        content = content.lstrip('\ufeff\xef\xbb\xbf\r\n\t ')
+        
+        # 🔥 SUPPRIME TOUT AVANT <?xml (MIDI MADA)
+        if 'midi-madagasikara' in url.lower():
+            content = re.sub(r'^.*?(\<\?xml)', r'\1', content, flags=re.DOTALL | re.IGNORECASE)
+            print(f"   🎯 MIDI MADA CLEAN: {len(content)} chars")
+        else:
+            print(f"   📏 {len(content)} chars")
+        
+        return content
+    except Exception as e:
+        print(f"❌ HTTP {url}: {e}")
+        return None
 
-def parse_date(entry) -> datetime:
-    """
-    Retourne un objet datetime UTC propre pour MongoDB.
-    Priorité : published → updated → fallback UTC now.
-    """
-
-    date_fields = ["published", "updated", "created"]
-
-    for field in date_fields:
-        if hasattr(entry, field):
-            value = getattr(entry, field)
-            if value:
-                try:
-                    dt = parser.parse(value)
-
-                    # Si pas de timezone → forcer UTC
-                    if dt.tzinfo is None:
-                        dt = dt.replace(tzinfo=timezone.utc)
-                    else:
-                        dt = dt.astimezone(timezone.utc)
-
-                    return dt
-                except Exception:
-                    continue
-
-    # Fallback propre en UTC
+def parse_date(entry):
+    """Parse date RSS"""
+    for date_field in ['published', 'updated', 'pubDate', 'created']:
+        if hasattr(entry, date_field):
+            try:
+                return feedparser._getTimeStruct(getattr(entry, date_field))
+            except:
+                pass
     return datetime.now(timezone.utc)
 
-def fetch_feed_content(feed_url: str) -> str | None:
-    for _ in range(MAX_RETRIES):
-        try:
-            response = requests.get(feed_url, headers=HEADERS, timeout=TIMEOUT)
-            response.raise_for_status()
-            return response.content
-        except requests.RequestException:
-            continue
-    return None
-
-def clean_summary(summary: str) -> str:
+def clean_summary(summary):
+    """Nettoie résumé RSS"""
     if not summary:
         return ""
-    soup = BeautifulSoup(summary, "html.parser")
-    text = soup.get_text(separator=" ")
-    text = unicodedata.normalize("NFKC", text)
-    return " ".join(text.split())
+    soup = BeautifulSoup(str(summary), 'html.parser')
+    text = soup.get_text()
+    paras = [p.strip() for p in text.split('\n') if p.strip()]
+    result = paras[0][:500] + "..." if paras else text[:500]
+    return re.sub(r'\s+', ' ', result).strip()
+
+def generate_article_id(url):
+    return hashlib.md5(url.encode()).hexdigest()
 
 def fetch_rss_articles():
+    """Pipeline RSS principal"""
     articles = []
-    for feed_url in RSS_FEEDS:
+    print("🌐 Test des 15 RSS feeds...")
+    
+    for i, feed_url in enumerate(RSS_FEEDS, 1):
+        print(f"\n{i}. {feed_url}")
         content = fetch_feed_content(feed_url)
         if not content:
             continue
 
-        parsed_feed = feedparser.parse(content)
-        if parsed_feed.bozo:
+        feed = feedparser.parse(content)
+        print(f"   📊 Bozo={feed.bozo}, Entries={len(feed.entries)}")
+        
+        if feed.bozo or not feed.entries:
+            print(f"   ❌ Skip: {feed.bozo_exception if feed.bozo else 'No entries'}")
             continue
 
-        for entry in parsed_feed.entries:
-            if not hasattr(entry, "link") or not hasattr(entry, "title"):
+        count_ok = 0
+        for entry in feed.entries[:15]:  # 15 max/feed
+            try:
+                link = getattr(entry, 'link', getattr(entry, 'id', None))
+                if not link: continue
+                
+                title = getattr(entry, 'title', 'NO TITLE').strip()
+                if len(title) < 5: continue
+
+                summary = getattr(entry, 'summary', '') or getattr(entry, 'description', '')
+                content_clean = clean_summary(summary)
+                if len(content_clean) < 20: 
+                    print(f"     ⚠️ Skip court: {len(content_clean)} chars")
+                    continue
+
+                article = {
+                    "id_article": generate_article_id(link),
+                    "source": feed_url,
+                    "titre": title,
+                    "date_publication": parse_date(entry),
+                    "contenu": content_clean,
+                    "url": link.strip(),
+                    "created_at": datetime.now(timezone.utc),
+                }
+                
+                articles.append(article)
+                count_ok += 1
+                print(f"     ✅ '{title[:60]}...'\n       📝 {content_clean[:60]}...\n       🔗 {link[:60]}...")
+                print()  # Ligne vide
+
+            except Exception as e:
+                print(f"     ❌ Erreur: {e}")
                 continue
 
-            url = entry.link.strip()
-            summary = clean_summary(entry.summary) if hasattr(entry, "summary") else ""
-
-            date_pub = parse_date(entry)
-            created_at = datetime.now(timezone.utc)
-
-            # Si date_publication est vide, fallback sur created_at
-            if not date_pub:
-                date_pub = created_at
-
-            article = {
-                "id_article": generate_article_id(url),
-                "source": feed_url,
-                "source_type": "rss",
-                "titre": entry.title.strip(),
-                "date_publication": date_pub,
-                "contenu": summary,
-                "url": url,
-                "created_at": created_at,
-            }
-            articles.append(article)
+        print(f"   ➕ {count_ok} articles OK")
+    
+    print(f"\n🏁 TOTAL: {len(articles)} articles RSS")
     return articles

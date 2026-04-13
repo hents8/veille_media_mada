@@ -16,7 +16,7 @@ from etl.transform import clean_text, analyze_sentiment, categorize_text, analyz
 MONGO_URI = os.getenv("MONGO_URI")
 if not MONGO_URI:
     raise ValueError("La variable d'environnement MONGO_URI n'est pas définie !")
- 
+
 MIN_CONTENT_LENGTH = 30
 MIN_TITLE_LENGTH = 5 
 BATCH_SIZE = 100
@@ -101,33 +101,54 @@ def process_articles(collection, articles, source_label="RSS"):
     if operations:
         collection.bulk_write(operations)
     
+    print(f"📊 [{source_label}] Résumé: +{added_count} ajoutés, {existing_count} existants, {skipped_count} ignorés")
     return added_count, existing_count
-    
+
 def main():
     client = MongoClient(MONGO_URI)
     db = client["veille_media"]
     collection = db["articles"]
 
-    print("📌 Démarrage pipeline veille média")
+    print("🚀 PIPELINE VEILLE MÉDIA - 13/04/2026")
     
-    # 1️⃣ RSS
+    # 🔍 1️⃣ DEBUG RSS (CAUSE PRINCIPALE)
+    print("\n🔍 DEBUG RSS...")
     rss_articles = fetch_rss_articles()
+    print(f"  📊 Articles RSS totaux: {len(rss_articles)}")
+    
+    if rss_articles:
+        for i, art in enumerate(rss_articles[:3]):
+            print(f"  {i+1}: '{art.get('titre', 'NO TITLE')[:60]}'")
+            print(f"     URL: {art.get('url', 'NO URL')[:70]}")
+            print(f"     Contenu: {len(str(art.get('contenu', '')))} chars")
+        print(f"  ... + {len(rss_articles)-3} autres")
+    else:
+        print("  ❌ RSS VIDE = BUG rss_loader.py !")
+        client.close()
+        return
+
+    # 2️⃣ PROCESS RSS
+    print("\n🔄 Processing RSS...")
     total_rss_added, total_rss_existing = process_articles(collection, rss_articles, "RSS")
 
-    # 2️⃣ Scraping HTML
-    scrap_articles = scrape_site()
-    total_scrap_added, total_scrap_existing = process_articles(collection, scrap_articles, "SCRAP")
+    # 3️⃣ SCRAPING (optionnel)
+    # print("\n🕷️  Scraping...")
+    # scrap_articles = scrape_site()
+    # total_scrap_added, total_scrap_existing = process_articles(collection, scrap_articles, "SCRAP")
 
-    # 3️⃣ Selenium Orange Actu
-    #orange_articles = scrape_orange_actu(max_pages=3)
-    #total_orange_added, total_orange_existing = process_articles(collection, orange_articles, "ORANGE")
+    # 4️⃣ ORANGE (optionnel)
+    # print("\n🌊 Orange Actu...")
+    # orange_articles = scrape_orange_actu(max_pages=3)
+    # total_orange_added, total_orange_existing = process_articles(collection, orange_articles, "ORANGE")
 
-    # 4️⃣ Résumé final
-    print("\n📊 Résumé final du pipeline :")
-    print(f"RSS     - Articles ajoutés : {total_rss_added}, déjà présents : {total_rss_existing}")
-    print(f"SCRAP   - Articles ajoutés : {total_scrap_added}, déjà présents : {total_scrap_existing}")
-    #print(f"ORANGE  - Articles ajoutés : {total_orange_added}, déjà présents : {total_orange_existing}")
-    print("✅ Pipeline terminé, MongoDB mis à jour")
+    # 📊
+    print("\n" + "="*60)
+    print("✅ PIPELINE TERMINÉ")
+    print(f"RSS:     +{total_rss_added} AJOUTÉS, {total_rss_existing} DÉJÀ PRÉSENTS")
+    print("MongoDB mis à jour ! Vérifie: db.articles.find({origin: 'Midi Madagasikara'})")
+    print("="*60)
+    
+    client.close()
 
 if __name__ == "__main__":
     main()
