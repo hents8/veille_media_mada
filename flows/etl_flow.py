@@ -44,11 +44,10 @@ def orange_task():
 @flow(name="Articles ETL Flow")
 def articles_etl_flow():
     rss_result = rss_task()
-    scrap_result = scrap_task()
-    orange_result = orange_task()
+    
 
     print("Pipeline terminé !")
-    print(rss_result, scrap_result, orange_result)
+    print(rss_result)
 
 
 if __name__ == "__main__":
