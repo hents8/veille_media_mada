@@ -113,6 +113,7 @@ def fetch_rss_articles():
                     "contenu": content_clean,
                     "url": link.strip(),
                     "created_at": datetime.now(timezone.utc),
+                    "source_type": "RSS",
                 }
                 
                 articles.append(article)

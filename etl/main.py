@@ -80,6 +80,7 @@ def process_articles(collection, articles, source_label="RSS"):
                 article["categorie"] = categorize_text(cleaned_content)
             except:
                 article["categorie"] = None
+                
 
             source_val = article.get("source", "")
             article["origin"] = extract_origin(source_val)
