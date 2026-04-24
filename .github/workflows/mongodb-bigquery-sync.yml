@@ -1,0 +1,35 @@
+name: MongoDB to BigQuery Sync
+
+on:
+  schedule:
+    - cron: '0 2,14 * * *'  # 2h/14h UTC
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - id: auth
+      uses: google-github-actions/auth@v3
+      with:
+        workload_identity_provider: 'projects/XXXX/locations/global/workloadIdentityPools/github/providers/my-repo'  # De GCP
+        service_account: bigquery-mongo-sync@veille-media-mada-sync.iam.gserviceaccount.com
+        project_id: veille-media-mada-sync
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - run: pip install pymongo google-cloud-bigquery python-dotenv
+
+    - env:
+        MONGO_URI: ${{ secrets.MONGO_URI }}
+        GCP_PROJECT_ID: veille-media-mada-sync
+        BIGQUERY_DATASET: veille_mada
+      run: python etl/sync_mongodb_bigquery.py
