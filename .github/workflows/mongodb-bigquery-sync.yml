@@ -14,15 +14,18 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - id: auth  # ✅ ID pour debug
+    - id: auth
       uses: google-github-actions/auth@v3
       with:
         workload_identity_provider: 'projects/476884137835/locations/global/workloadIdentityPools/github-mada-pool/providers/github-mada-provider'
         service_account: 'veille-media-mada-sync@veille-media-mada-sync.iam.gserviceaccount.com'
         project_id: 'veille-media-mada-sync'
 
-    - name: Vérifier auth GCP  # ✅ Test
-      run: gcloud projects describe veille-media-mada-sync
+    # ✅ Test BIGQUERY DIRECT (ignore bug gcloud impersonation)
+    - name: Test BigQuery Access
+      run: |
+        bq ls --project_id=veille-media-mada-sync
+        echo "✅ WIF actif !"
 
     - uses: actions/setup-python@v5
       with:
