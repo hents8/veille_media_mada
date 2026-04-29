@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 MongoDB → BigQuery Sync TOTAL (veille_media.articles → articles_clean)
-HYBRIDE : Workload Identity + Service Account JSON auto-détection
-Amélioré : TIMESTAMP natif + Robust float + Logs rotation
+HYBRIDE AVANCÉ : Workload Identity PRIORITAIRE + JSON fallback
+Fix GitHub Actions : Ignore JSON temp gha-creds-*
 """
 import sys
 import os
@@ -37,28 +37,38 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def setup_credentials():
-    """🚀 HYBRIDE : Auto-détecte JSON local OU Workload Identity"""
+    """🚀 WIF PRIORITAIRE : Ignore JSON gha-creds-* (GitHub temp)"""
     json_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     
-    if json_path and os.path.exists(json_path):
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = json_path
+    # ✅ FIX GITHUB ACTIONS : Ignore JSON temp auto-généré par auth@v3
+    if json_path and 'gha-creds' in json_path.lower():
+        logger.warning(f"⚠️ JSON GitHub temp ignoré: {json_path} (WIF prioritaire)")
+        os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+        json_path = None
+    elif json_path and os.path.exists(json_path):
         logger.info(f"✅ Service Account JSON: {json_path}")
     else:
         logger.info("✅ Workload Identity (ADC) détecté")
     
-    # Test connexion BigQuery
+    # Test connexion BigQuery + permissions
     try:
         client_bq = bigquery.Client(project=GCP_PROJECT_ID)
         datasets = list(client_bq.list_datasets())
         logger.info(f"✅ BigQuery connecté: {len(datasets)} datasets")
+        
+        # Test dataset spécifique
+        dataset_ref = client_bq.dataset(BIGQUERY_DATASET)
+        tables = list(client_bq.list_tables(dataset_ref))
+        logger.info(f"✅ Dataset {BIGQUERY_DATASET}: {len(tables)} tables")
+        
         return client_bq
     except Exception as e:
-        logger.error(f"❌ Auth BigQuery échouée: {e}")
-        logger.info("💡 Vérifiez: GOOGLE_APPLICATION_CREDENTIALS ou gcloud auth")
+        logger.error(f"❌ Auth/Permissions BigQuery: {e}")
+        logger.info("💡 1) IAM: roles/bigquery.dataEditor 2) WIF mapping repo")
         sys.exit(1)
 
+# [safe_float, parse_mongo_date, datetime_to_iso INCHANGÉS]
 def safe_float(value):
-    """Safe float sans crash NaN/Infinity."""
     if value is None or value == "NaN" or value == "Infinity" or value == "-Infinity":
         return None
     try:
@@ -69,7 +79,6 @@ def safe_float(value):
         return None
 
 def parse_mongo_date(field):
-    """$date MongoDB → datetime natif."""
     if field is None:
         return None
     if isinstance(field, dict) and "$date" in field:
@@ -84,11 +93,9 @@ def parse_mongo_date(field):
     return None
 
 def datetime_to_iso(dt):
-    """datetime → ISO string (BigQuery natif + graph-ready)"""
     if dt is None:
         return None
-    return dt.isoformat()  # "2026-04-28T16:23:25.123456+00:00"
-
+    return dt.isoformat()
 
 def create_table_if_not_exists(client_bq, dataset_id, table_id):
     table_ref = client_bq.dataset(dataset_id).table(table_id)
@@ -116,6 +123,7 @@ def create_table_if_not_exists(client_bq, dataset_id, table_id):
         table = client_bq.create_table(table)
         logger.info(f"✅ Table {table_id} créée.")
 
+# [main() INCHANGÉ]
 def main():
     client_mongo = None
     tmp_name = None
@@ -125,11 +133,8 @@ def main():
             sys.exit(1)
 
         logger.info(f"🚀 Sync: {GCP_PROJECT_ID}.{BIGQUERY_DATASET}.articles_clean")
-
-        # 1. Setup credentials HYBRIDE
         client_bq = setup_credentials()
 
-        # 2. MongoDB
         client_mongo = MongoClient(MONGO_URI)
         collection = client_mongo["veille_media"]["articles"]
         total = collection.count_documents({})
@@ -139,11 +144,9 @@ def main():
             logger.info("ℹ️ Collection vide.")
             return
 
-        # 3. Cursor batché
         articles = list(collection.find({}).sort("created_at", -1).batch_size(100))
         logger.info(f"📥 {len(articles)} articles chargés")
 
-        # 4. Préparer rows
         table_id = "articles_clean"
         create_table_if_not_exists(client_bq, BIGQUERY_DATASET, table_id)
         table_ref = client_bq.dataset(BIGQUERY_DATASET).table(table_id)
@@ -176,20 +179,19 @@ def main():
             if i % 100 == 0 or i == total:
                 logger.info(f"📝 Préparé: {i}/{total} ({i/total*100:.1f}%)")
 
-        # 5. JSONL temp
         tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", encoding="utf-8", delete=False)
         tmp_name = tmp.name
         for row in rows:
             json.dump(row, tmp, ensure_ascii=False)
-            tmp.write("\n")  # ✅ Corrigé : "\n" pas "\\n"
+            tmp.write("\n")
         tmp.close()
-        logger.info(f"💾 JSONL généré: {tmp_name} ({len(rows)} lignes)")
+        logger.info(f"💾 JSONL: {tmp_name} ({len(rows)} lignes)")
 
-        # 6. Load job
         job_config = bigquery.LoadJobConfig(
             source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
             write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
-            schema=client_bq.get_table(table_ref).schema
+            autodetect=True,  # ✅ Flex schema
+            max_bad_records=10
         )
         with open(tmp_name, "rb") as f:
             job = client_bq.load_table_from_file(f, table_ref, job_config=job_config)
@@ -202,7 +204,7 @@ def main():
         logger.error(f"💥 ERREUR: {e}", exc_info=True)
         sys.exit(1)
     finally:
-        if client_mongo:
+        if 'client_mongo' in locals():
             client_mongo.close()
         if tmp_name and os.path.exists(tmp_name):
             os.unlink(tmp_name)
