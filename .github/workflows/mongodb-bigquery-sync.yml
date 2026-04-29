@@ -17,7 +17,7 @@ jobs:
     # 🔐 Workload Identity (AUCUN secret GCP !)
     - uses: google-github-actions/auth@v3
       with:
-        workload_identity_provider: 'projects/YOUR_PROJECT_NUMBER/locations/global/workloadIdentityPools/github/providers/github-provider'
+        workload_identity_provider: 'projects/476884137835/locations/global/workloadIdentityPools/github-pool-veille/providers/github-provider-mada'
         service_account: 'veille-media-mada-sync@veille-media-mada-sync.iam.gserviceaccount.com'
         project_id: 'veille-media-mada-sync'
 
