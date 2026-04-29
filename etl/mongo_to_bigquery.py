@@ -37,34 +37,28 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def setup_credentials():
-    """🚀 WIF PRIORITAIRE : Ignore JSON gha-creds-* (GitHub temp)"""
+    """🚀 GitHub auth@v3 : JSON temp = WIF délégué"""
     json_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     
-    # ✅ FIX GITHUB ACTIONS : Ignore JSON temp auto-généré par auth@v3
-    if json_path and 'gha-creds' in json_path.lower():
-        logger.warning(f"⚠️ JSON GitHub temp ignoré: {json_path} (WIF prioritaire)")
-        os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
-        json_path = None
-    elif json_path and os.path.exists(json_path):
-        logger.info(f"✅ Service Account JSON: {json_path}")
+    if json_path and os.path.exists(json_path):
+        logger.info(f"✅ WIF GitHub JSON: {os.path.basename(json_path)}")
     else:
-        logger.info("✅ Workload Identity (ADC) détecté")
+        logger.info("ℹ️ Pas de GOOGLE_APPLICATION_CREDENTIALS (ADC)")
     
-    # Test connexion BigQuery + permissions
     try:
         client_bq = bigquery.Client(project=GCP_PROJECT_ID)
         datasets = list(client_bq.list_datasets())
-        logger.info(f"✅ BigQuery connecté: {len(datasets)} datasets")
+        logger.info(f"✅ BigQuery OK: {len(datasets)} datasets")
         
-        # Test dataset spécifique
+        # Test dataset + table
         dataset_ref = client_bq.dataset(BIGQUERY_DATASET)
         tables = list(client_bq.list_tables(dataset_ref))
-        logger.info(f"✅ Dataset {BIGQUERY_DATASET}: {len(tables)} tables")
+        logger.info(f"✅ {BIGQUERY_DATASET}: {len(tables)} tables")
         
         return client_bq
     except Exception as e:
-        logger.error(f"❌ Auth/Permissions BigQuery: {e}")
-        logger.info("💡 1) IAM: roles/bigquery.dataEditor 2) WIF mapping repo")
+        logger.error(f"❌ BigQuery: {e}")
+        logger.info("🔧 FIX: GCP IAM → SA 'veille-media-mada-sync@...' → BigQuery Data Editor")
         sys.exit(1)
 
 # [safe_float, parse_mongo_date, datetime_to_iso INCHANGÉS]
