@@ -1,7 +1,7 @@
 name: MongoDB → BigQuery Sync
 on:
   schedule:
-    - cron: '0 2,14 * * *'  # 4h/16h Madagascar
+    - cron: '0 2,14 * * *'  # 4h/16h Madagascar (UTC+3)
   workflow_dispatch:
 
 jobs:
@@ -14,12 +14,15 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    # 🔐 Workload Identity (AUCUN secret GCP !)
-    - uses: google-github-actions/auth@v3
+    - id: auth  # ✅ ID pour debug
+      uses: google-github-actions/auth@v3
       with:
         workload_identity_provider: 'projects/476884137835/locations/global/workloadIdentityPools/github-mada-pool/providers/github-mada-provider'
         service_account: 'veille-media-mada-sync@veille-media-mada-sync.iam.gserviceaccount.com'
         project_id: 'veille-media-mada-sync'
+
+    - name: Vérifier auth GCP  # ✅ Test
+      run: gcloud projects describe veille-media-mada-sync
 
     - uses: actions/setup-python@v5
       with:
@@ -27,7 +30,8 @@ jobs:
 
     - run: pip install -r requirements.txt
 
-    # 🚀 Votre script hybride détecte auto Workload Identity !
     - run: python etl/mongo_to_bigquery.py
       env:
         MONGO_URI: ${{ secrets.MONGO_URI }}
+        GCP_PROJECT_ID: veille-media-mada-sync
+        BIGQUERY_DATASET: veille_mada
