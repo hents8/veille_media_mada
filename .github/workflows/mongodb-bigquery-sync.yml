@@ -12,25 +12,23 @@ jobs:
       contents: read
 
     steps:
-    - uses: actions/checkout@v4
-    
-    - id: auth
-      uses: google-github-actions/auth@v3
-      with:
-        workload_identity_provider: 'projects/476884137835/locations/global/workloadIdentityPools/github-mada-pool/providers/github-mada-provider'
-        service_account: 'bigquery-sync-mada@veille-media-mada-sync.iam.gserviceaccount.com'
-        project_id: 'veille-media-mada-sync'
+      - uses: actions/checkout@v4
 
-    # ❌ SUPPRIMÉ : gcloud buggé
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: '//iam.googleapis.com/projects/476884137835/locations/global/workloadIdentityPools/github-mada-pool/providers/github-mada-provider'
+          service_account: 'bigquery-sync-mada@veille-media-mada-sync.iam.gserviceaccount.com'
+          project_id: 'veille-media-mada-sync'
 
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
-    - run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt
 
-    - run: python etl/mongo_to_bigquery.py
-      env:
-        MONGO_URI: ${{ secrets.MONGO_URI }}
-        GCP_PROJECT_ID: veille-media-mada-sync
-        BIGQUERY_DATASET: veille_mada
+      - run: python etl/mongo_to_bigquery.py
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          GCP_PROJECT_ID: veille-media-mada-sync
+          BIGQUERY_DATASET: veille_mada
