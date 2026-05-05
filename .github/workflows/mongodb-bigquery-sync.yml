@@ -15,9 +15,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - id: auth
-        uses: google-github-actions/auth@v3
+        uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: '//iam.googleapis.com/projects/476884137835/locations/global/workloadIdentityPools/github-mada-pool/providers/github-mada-provider-v2'
+          workload_identity_provider: '/projects/476884137835/locations/global/workloadIdentityPools/github-mada-pool/providers/github-mada-provider-v2'
           service_account: 'bigquery-sync-mada@veille-media-mada-sync.iam.gserviceaccount.com'
           project_id: 'veille-media-mada-sync'
         
