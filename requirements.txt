@@ -16,3 +16,4 @@ sentencepiece
 protobuf>=4.25.0
 pandas
 google-cloud-bigquery
+fastapi<0.137.0
