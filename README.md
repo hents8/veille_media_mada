@@ -175,6 +175,16 @@ Le projet supporte l'authentification **Workload Identity Federation (WIF)** sur
 
 ---
 
+## 📊 Tableau de Bord Looker Studio
+
+Vous pouvez consulter le tableau de bord interactif des médias malgaches directement via ce lien :
+
+[![Looker Studio](https://img.shields.io/badge/Looker_Studio-Consulter_le_Rapport-blue?style=for-the-badge&logo=google)](https://datastudio.google.com/reporting/0e624834-a151-4eea-8389-fd395ebb5e53)
+
+👉 **[Ouvrir le rapport complet Looker Studio](https://datastudio.google.com/reporting/0e624834-a151-4eea-8389-fd395ebb5e53)**
+
+---
+
 ## 📝 Licence
 
 Distribué sous la licence MIT. Voir `LICENSE` pour plus d'informations.
