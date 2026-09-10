@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 MongoDB → BigQuery Sync TOTAL (veille_media.articles → articles_clean)
++ Création/Mise à jour automatique de la vue SQL (articles_clean_view)
 HYBRIDE AVANCÉ : Workload Identity PRIORITAIRE + JSON fallback
 Fix GitHub Actions : Ignore JSON temp gha-creds-*
 """
@@ -61,7 +62,6 @@ def setup_credentials():
         logger.info("🔧 FIX: GCP IAM → SA 'veille-media-mada-sync@...' → BigQuery Data Editor")
         sys.exit(1)
 
-# [safe_float, parse_mongo_date, datetime_to_iso INCHANGÉS]
 def safe_float(value):
     if value is None or value == "NaN" or value == "Infinity" or value == "-Infinity":
         return None
@@ -104,7 +104,7 @@ def create_table_if_not_exists(client_bq, dataset_id, table_id):
             bigquery.SchemaField("contenu", "STRING", mode="NULLABLE"),
             bigquery.SchemaField("source", "STRING", mode="NULLABLE"),
             bigquery.SchemaField("source_type", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("categorie", "STRING", mode="REPEATED"),
+            bigquery.SchemaField("categorie", "STRING", mode="REPEATED"),  # ✅ Conservé en REPEATED
             bigquery.SchemaField("langue", "STRING", mode="NULLABLE"),
             bigquery.SchemaField("sentiment", "STRING", mode="NULLABLE"),
             bigquery.SchemaField("sentiment_score", "FLOAT64", mode="NULLABLE"),
@@ -117,7 +117,33 @@ def create_table_if_not_exists(client_bq, dataset_id, table_id):
         table = client_bq.create_table(table)
         logger.info(f"✅ Table {table_id} créée.")
 
-# [main() INCHANGÉ]
+def create_or_update_view(client_bq, dataset_id, table_id, view_id):
+    """Création / mise à jour automatique de la vue SQL UNNEST pour Looker Studio"""
+    sql_query = f"""
+    CREATE OR REPLACE VIEW `{GCP_PROJECT_ID}.{dataset_id}.{view_id}` AS
+    SELECT 
+      id_article,
+      titre,
+      url,
+      contenu,
+      source,
+      source_type,
+      langue,
+      sentiment,
+      sentiment_score,
+      origin,
+      created_at,
+      date_publication,
+      sync_timestamp,
+      cat AS categorie
+    FROM 
+      `{GCP_PROJECT_ID}.{dataset_id}.{table_id}`,
+      UNNEST(categorie) AS cat
+    """
+    query_job = client_bq.query(sql_query)
+    query_job.result()
+    logger.info(f"✅ Vue SQL `{view_id}` (UNNEST) créée/mise à jour avec succès.")
+
 def main():
     client_mongo = None
     tmp_name = None
@@ -142,6 +168,8 @@ def main():
         logger.info(f"📥 {len(articles)} articles chargés")
 
         table_id = "articles_clean"
+        view_id = "articles_clean_view"
+        
         create_table_if_not_exists(client_bq, BIGQUERY_DATASET, table_id)
         table_ref = client_bq.dataset(BIGQUERY_DATASET).table(table_id)
 
@@ -159,7 +187,7 @@ def main():
                 "contenu": str(article.get("contenu", "")),
                 "source": str(article.get("source", "")),
                 "source_type": str(article.get("source_type", "")),
-                "categorie": categories,
+                "categorie": categories,  # ✅ Envoie la LISTE/ARRAY native
                 "langue": str(article.get("langue", "")),
                 "sentiment": str(article.get("sentiment", "")),
                 "sentiment_score": safe_float(article.get("sentiment_score")),
@@ -184,7 +212,7 @@ def main():
         job_config = bigquery.LoadJobConfig(
             source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
             write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
-            autodetect=True,  # ✅ Flex schema
+            autodetect=True,
             max_bad_records=10
         )
         with open(tmp_name, "rb") as f:
@@ -192,6 +220,10 @@ def main():
         job.result()
 
         logger.info(f"🎉 SUCCESS: {job.output_rows} rows → {GCP_PROJECT_ID}.{BIGQUERY_DATASET}.{table_id}")
+
+        # 🔹 Mise à jour automatique de la vue SQL avec UNNEST pour Looker Studio
+        create_or_update_view(client_bq, BIGQUERY_DATASET, table_id, view_id)
+
         logger.info(f"📋 Logs: {log_file}")
 
     except Exception as e:
