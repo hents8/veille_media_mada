@@ -93,29 +93,33 @@ def datetime_to_iso(dt):
         return None
     return dt.isoformat()
 
+def get_table_schema():
+    """Définition stricte et fixe du schéma pour éviter la perte des IDs de colonnes Looker Studio"""
+    return [
+        bigquery.SchemaField("id_article", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("titre", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("url", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("contenu", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("source", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("source_type", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("categorie", "STRING", mode="REPEATED"),       # ✅ ARRAY natif pour la vue SQL
+        bigquery.SchemaField("categorie_texte", "STRING", mode="NULLABLE"), # ✅ STRING plat pour Looker Studio
+        bigquery.SchemaField("langue", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("sentiment", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("sentiment_score", "FLOAT64", mode="NULLABLE"),
+        bigquery.SchemaField("origin", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("created_at", "TIMESTAMP", mode="NULLABLE"),
+        bigquery.SchemaField("date_publication", "TIMESTAMP", mode="NULLABLE"),
+        bigquery.SchemaField("sync_timestamp", "TIMESTAMP", mode="NULLABLE"),
+    ]
+
 def create_table_if_not_exists(client_bq, dataset_id, table_id):
     table_ref = client_bq.dataset(dataset_id).table(table_id)
     try:
         client_bq.get_table(table_ref)
         logger.info(f"✅ Table {table_id} existe.")
     except Exception:
-        schema = [
-            bigquery.SchemaField("id_article", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("titre", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("url", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("contenu", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("source", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("source_type", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("categorie", "STRING", mode="REPEATED"),       # ✅ ARRAY natif pour les graphiques
-            bigquery.SchemaField("categorie_texte", "STRING", mode="NULLABLE"), # ✅ STRING à plat pour les tableaux Looker
-            bigquery.SchemaField("langue", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("sentiment", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("sentiment_score", "FLOAT64", mode="NULLABLE"),
-            bigquery.SchemaField("origin", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("created_at", "TIMESTAMP", mode="NULLABLE"),
-            bigquery.SchemaField("date_publication", "TIMESTAMP", mode="NULLABLE"),
-            bigquery.SchemaField("sync_timestamp", "TIMESTAMP", mode="NULLABLE"),
-        ]
+        schema = get_table_schema()
         table = bigquery.Table(table_ref, schema=schema)
         table = client_bq.create_table(table)
         logger.info(f"✅ Table {table_id} créée avec le schéma complet.")
@@ -139,7 +143,7 @@ def create_or_update_view(client_bq, dataset_id, table_id, view_id):
       date_publication,
       sync_timestamp,
       cat AS categorie,
-      ARRAY_TO_STRING(categorie, ', ') AS categorie_texte
+      categorie_texte
     FROM 
       `{GCP_PROJECT_ID}.{dataset_id}.{table_id}`,
       UNNEST(categorie) AS cat
@@ -192,7 +196,7 @@ def main():
                 "source": str(article.get("source", "")),
                 "source_type": str(article.get("source_type", "")),
                 "categorie": categories,                      # ✅ ARRAY natif pour la vue SQL
-                "categorie_texte": ", ".join(categories),     # ✅ TEXTE plat ("politique, société") pour les tableaux
+                "categorie_texte": ", ".join(categories),     # ✅ TEXTE plat pour les tableaux Looker
                 "langue": str(article.get("langue", "")),
                 "sentiment": str(article.get("sentiment", "")),
                 "sentiment_score": safe_float(article.get("sentiment_score")),
@@ -214,10 +218,12 @@ def main():
         tmp.close()
         logger.info(f"💾 JSONL: {tmp_name} ({len(rows)} lignes)")
 
+        # 🔒 Schéma fixe : autodetect désactivé pour maintenir la persistance des colonnes dans Looker Studio
         job_config = bigquery.LoadJobConfig(
             source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
             write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
-            autodetect=True,
+            schema=get_table_schema(),
+            autodetect=False,
             max_bad_records=10
         )
         with open(tmp_name, "rb") as f:

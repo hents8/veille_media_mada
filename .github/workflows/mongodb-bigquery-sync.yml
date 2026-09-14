@@ -1,11 +1,17 @@
 name: MongoDB → BigQuery Sync
 on:
   schedule:
-    - cron: '0 */3 * * *'
-  workflow_dispatch:
+    - cron: '15 */3 * * *'  # 💡 Décalé de 15 min après l'heure pile pour laisser le temps au scraping
+  workflow_dispatch:        # Permet le déclenchement manuel dans l'interface GitHub
+  workflow_run:             # 🚀 Chaînage : se déclenche automatiquement à la fin du Daily ETL
+    workflows: ["Daily ETL"] # Nom exact du premier fichier (etl.yml)
+    types:
+      - completed
 
 jobs:
   sync:
+    # 🔒 Ne s'exécute QUE si le Daily ETL s'est terminé avec succès (ignoré si le scraping a échoué)
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -20,11 +26,11 @@ jobs:
           workload_identity_provider: 'projects/476884137835/locations/global/workloadIdentityPools/github-mada-pool/providers/github-mada-provider-v2'
           service_account: 'bigquery-sync-mada@veille-media-mada-sync.iam.gserviceaccount.com'
           project_id: 'veille-media-mada-sync'
-        
 
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: 'pip'
 
       - run: pip install -r requirements.txt
 
@@ -33,3 +39,4 @@ jobs:
           MONGO_URI: ${{ secrets.MONGO_URI }}
           GCP_PROJECT_ID: veille-media-mada-sync
           BIGQUERY_DATASET: veille_mada
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
