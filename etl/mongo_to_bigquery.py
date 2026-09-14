@@ -2,6 +2,8 @@
 """
 MongoDB → BigQuery Sync TOTAL (veille_media.articles → articles_clean)
 + Création/Mise à jour automatique de la vue SQL (articles_clean_view)
+  Table brute : 'categorie' (ARRAY) + 'categorie_texte' (STRING pour Looker Studio Tableaux)
+  Vue SQL     : 'categorie' (UNNEST pour Looker Studio Graphiques)
 HYBRIDE AVANCÉ : Workload Identity PRIORITAIRE + JSON fallback
 Fix GitHub Actions : Ignore JSON temp gha-creds-*
 """
@@ -104,7 +106,8 @@ def create_table_if_not_exists(client_bq, dataset_id, table_id):
             bigquery.SchemaField("contenu", "STRING", mode="NULLABLE"),
             bigquery.SchemaField("source", "STRING", mode="NULLABLE"),
             bigquery.SchemaField("source_type", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("categorie", "STRING", mode="REPEATED"),  # ✅ Conservé en REPEATED
+            bigquery.SchemaField("categorie", "STRING", mode="REPEATED"),       # ✅ ARRAY natif pour les graphiques
+            bigquery.SchemaField("categorie_texte", "STRING", mode="NULLABLE"), # ✅ STRING à plat pour les tableaux Looker
             bigquery.SchemaField("langue", "STRING", mode="NULLABLE"),
             bigquery.SchemaField("sentiment", "STRING", mode="NULLABLE"),
             bigquery.SchemaField("sentiment_score", "FLOAT64", mode="NULLABLE"),
@@ -115,10 +118,10 @@ def create_table_if_not_exists(client_bq, dataset_id, table_id):
         ]
         table = bigquery.Table(table_ref, schema=schema)
         table = client_bq.create_table(table)
-        logger.info(f"✅ Table {table_id} créée.")
+        logger.info(f"✅ Table {table_id} créée avec le schéma complet.")
 
 def create_or_update_view(client_bq, dataset_id, table_id, view_id):
-    """Création / mise à jour automatique de la vue SQL UNNEST pour Looker Studio"""
+    """Création / mise à jour automatique de la vue SQL pour Looker Studio"""
     sql_query = f"""
     CREATE OR REPLACE VIEW `{GCP_PROJECT_ID}.{dataset_id}.{view_id}` AS
     SELECT 
@@ -135,14 +138,15 @@ def create_or_update_view(client_bq, dataset_id, table_id, view_id):
       created_at,
       date_publication,
       sync_timestamp,
-      cat AS categorie
+      cat AS categorie,
+      ARRAY_TO_STRING(categorie, ', ') AS categorie_texte
     FROM 
       `{GCP_PROJECT_ID}.{dataset_id}.{table_id}`,
       UNNEST(categorie) AS cat
     """
     query_job = client_bq.query(sql_query)
     query_job.result()
-    logger.info(f"✅ Vue SQL `{view_id}` (UNNEST) créée/mise à jour avec succès.")
+    logger.info(f"✅ Vue SQL `{view_id}` mise à jour avec categorie et categorie_texte.")
 
 def main():
     client_mongo = None
@@ -187,7 +191,8 @@ def main():
                 "contenu": str(article.get("contenu", "")),
                 "source": str(article.get("source", "")),
                 "source_type": str(article.get("source_type", "")),
-                "categorie": categories,  # ✅ Envoie la LISTE/ARRAY native
+                "categorie": categories,                      # ✅ ARRAY natif pour la vue SQL
+                "categorie_texte": ", ".join(categories),     # ✅ TEXTE plat ("politique, société") pour les tableaux
                 "langue": str(article.get("langue", "")),
                 "sentiment": str(article.get("sentiment", "")),
                 "sentiment_score": safe_float(article.get("sentiment_score")),
@@ -221,7 +226,7 @@ def main():
 
         logger.info(f"🎉 SUCCESS: {job.output_rows} rows → {GCP_PROJECT_ID}.{BIGQUERY_DATASET}.{table_id}")
 
-        # 🔹 Mise à jour automatique de la vue SQL avec UNNEST pour Looker Studio
+        # 🔹 Mise à jour automatique de la vue SQL
         create_or_update_view(client_bq, BIGQUERY_DATASET, table_id, view_id)
 
         logger.info(f"📋 Logs: {log_file}")
